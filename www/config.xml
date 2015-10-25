@@ -1,0 +1,53 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="id-do-app" version="1.0.0" versionCode="1"
+  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:gap="http://phonegap.com/ns/1.0"
+  xmlns="http://www.w3.org/ns/widgets">
+
+  <name>nome do app</name>
+  <description>
+    descricão do app
+  </description>
+  <author email="email@email.teste" href="http://www.google.com">
+    Victor Hugo de Paiva Gonçales
+  </author>
+
+  <preference name="permissions" value="none"/>
+  <preference name="orientation" value="portrait"/>
+  <preference name="target-device" value="universal"/>
+  <preference name="fullscreen" value="true"/>
+  <preference name="webviewbounce" value="false"/>
+  <preference name="prerendered-icon" value="true"/>
+  <preference name="stay-in-webview" value="false"/>
+  <preference name="ios-statusbarstyle" value="black-opaque"/>
+  <preference name="detect-data-types" value="true"/>
+  <preference name="exit-on-suspend" value="false"/>
+  <preference name="show-splash-screen-spinner" value="true"/>
+  <preference name="auto-hide-splash-screen" value="false"/>
+  <preference name="disable-cursor" value="false"/>
+  <preference name="android-minSdkVersion" value="11"/>
+  <preference name="android-installLocation" value="auto"/>
+  <preference name="StatusBarOverlaysWebView" value="true"/>
+
+
+  <gap:plugin name="cordova-plugin-contacts" source="npm"/>
+  <gap:plugin name="cordova-plugin-network-information" source="npm"/>
+  <gap:plugin name="cordova-plugin-console" source="npm"/>
+  <gap:plugin name="cordova-plugin-device" source="npm"/>
+  <gap:plugin name="cordova-plugin-device-motion" source="npm"/>
+  <gap:plugin name="cordova-plugin-device-orientation" source="npm"/>
+  <gap:plugin name="cordova-plugin-media" source="npm"/>
+  <gap:plugin name="cordova-plugin-splashscreen" source="npm"/>
+  <gap:plugin name="cordova-plugin-dialogs" source="npm"/>
+  <gap:plugin name="cordova-plugin-file" source="npm"/>
+  <gap:plugin name="cordova-plugin-file-transfer" source="npm"/>
+  <gap:plugin name="cordova-plugin-inappbrowser" source="npm"/>
+
+
+  <icon src="icon.png"/>
+  <gap:splash src="splash.png"/>
+
+ <!--  colocar  imagens  abaixo ...  -->
+
+
+  <access origin="*"/>
+</widget>
