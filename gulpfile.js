@@ -4,7 +4,6 @@
  *
  */
 "use strict";
-
 var gulp = require("gulp");
 var browserify = require("browserify");
 var babelify = require("babelify");
@@ -21,6 +20,8 @@ var concat = require("gulp-concat");
 var sourcemaps = require("gulp-sourcemaps");
 var eslint = require("gulp-eslint");
 var del = require("del");
+var imagemin = require("gulp-imagemin");
+var pngquant = require("imagemin-pngquant");
 var eslintConfig = JSON.parse(require("fs").readFileSync("./.eslintrc").toString());
 //==============================================================================
 
@@ -35,7 +36,7 @@ function reload(task) {
 }
 
 // nome das tasks de  codigo fonte
-var _tasksCodigoFonte = ["js", "html", "css"];
+var _tasksCodigoFonte = ["js", "html", "css", "imagens"];
 
 //destino
 var PATH_WWW = "./www/";
@@ -44,15 +45,20 @@ var PATH = {
     js: {
         main: "./src/js/**/main-*.{js,jsx}",
         origem: "./src/js/**/*.{js,jsx}",
-        destino: PATH_WWW + "js/"
+        destino: PATH_WWW + "js/",
+        polyfill: "./src/js/libs/polyfill/**/*"
     },
     html: {
         origem: "./src/index.html",
         destino: PATH_WWW
     },
     css: {
-        origem: "./src/css/*.css",
+        origem: "./src/css/**/*.css",
         destino: PATH_WWW + "css/"
+    },
+    imagens: {
+        origem: "./src/images/**/*.*",
+        destino: PATH_WWW + "images/"
     }
 };
 
@@ -61,6 +67,25 @@ function zipar(plataforma) {
     return gulp.src([PATH_WWW + "**"])
         .pipe(zip("www_" + plataforma + ".zip"))
         .pipe(gulp.dest("./"));
+}
+
+function otimizaImg(origem, destino) {
+    return new Promise(function(resolve, reject) {
+        gulp.src(origem)
+            .pipe(imagemin({
+                progressive: true,
+                svgoPlugins: [{
+                    removeViewBox: false
+                }],
+                use: [pngquant({
+                    quality: "65-90",
+                    speed: 5
+                })]
+            }))
+            .pipe(gulp.dest(destino))
+            .on("end", resolve)
+            .on("error", reject);
+    });
 }
 
 //========build-codigo-fonte====================================================
@@ -74,38 +99,19 @@ gulp.task("build-codigo-fonte", _tasksCodigoFonte.concat("gera-config"),
 ["android", "ios", "wp"].forEach(function(plataforma) {
     gulp.task("build-" + plataforma, ["build-codigo-fonte"], function(done) {
         console.log("TASK: build-" + plataforma);
-        var imagens = "images/";
         var locales = "locales/";
-
-        del([PATH_WWW + "res/**/*",
-            PATH_WWW + imagens + "**/*",
+        del([PATH_WWW + "icon.png",
+            PATH_WWW + "splash.png",
+            PATH_WWW + "res/**/*",
             PATH_WWW + locales + "**/*"
         ]).then(function() {
-            //imagens dos icones
-            var p1 = new Promise(function(resolve, reject) {
-                gulp.src("./src/res/icon/" + plataforma + "/**/*")
-                    .pipe(gulp.dest(PATH_WWW + "res/icon/" + plataforma + "/"))
-                    .on("end", resolve)
-                    .on("error", reject);
-            });
-            //imagens de splash
-            var p2 = new Promise(function(resolve, reject) {
-                gulp.src("./src/res/screen/" + plataforma + "/**/*")
-                    .pipe(gulp.dest(PATH_WWW + "res/screen/" + plataforma + "/"))
-                    .on("end", resolve)
-                    .on("error", reject);
-            });
-            //imagens
-            var p3 = new Promise(function(resolve, reject) {
-                gulp.src("./src/" + imagens + "**/*", {
-                        base: "./src/" + imagens
-                    })
-                    .pipe(gulp.dest(PATH_WWW + imagens))
-                    .on("end", resolve)
-                    .on("error", reject);
-            });
-            //locales
-            var p4 = new Promise(function(resolve, reject) {
+            var p1 = otimizaImg("./src/res/icon/" + plataforma + "/**/*",
+                PATH_WWW + "res/icon/" + plataforma + "/");
+            var p2 = otimizaImg("./src/res/screen/" + plataforma + "/**/*",
+                PATH_WWW + "res/screen/" + plataforma + "/");
+            var p3 = otimizaImg("./src/icon.png", PATH_WWW);
+            var p4 = otimizaImg("./src/splash.png", PATH_WWW);
+            var p5 = new Promise(function(resolve, reject) {
                 gulp.src("./src/" + locales + "**/*", {
                         base: "./src/" + locales
                     })
@@ -113,7 +119,8 @@ gulp.task("build-codigo-fonte", _tasksCodigoFonte.concat("gera-config"),
                     .on("end", resolve)
                     .on("error", reject);
             });
-            Promise.all([p1, p2, p3, p4]).then(function() {
+
+            Promise.all([p1, p2, p3, p4, p5]).then(function() {
                 zipar(plataforma).on("end", function() {
                     console.log("##OK##");
                     done();
@@ -125,6 +132,28 @@ gulp.task("build-codigo-fonte", _tasksCodigoFonte.concat("gera-config"),
             });
         });
     });
+});
+
+
+//========imagens===============================================================
+gulp.task("imagens-clean", function() {
+    console.log("TASK: imagens-clean");
+    return del(PATH.imagens.destino);
+});
+gulp.task("imagens", function() {
+    console.log("TASK: imagens");
+    return gulp.src(PATH.imagens.origem)
+        .pipe(imagemin({
+            progressive: true,
+            svgoPlugins: [{
+                removeViewBox: false
+            }],
+            use: [pngquant({
+                quality: "65-90",
+                speed: 5
+            })]
+        }))
+        .pipe(gulp.dest(PATH.imagens.destino));
 });
 
 //========css===================================================================
@@ -157,54 +186,71 @@ gulp.task("html", ["html-clean"], function() {
 //========valida javascript=====================================================
 gulp.task("valida-js", function() {
     console.log("TASK: js");
-    return gulp.src(PATH.js.origem)
+    return gulp.src([PATH.js.origem, "!./js/libs/**/*"])
         .pipe(eslint(eslintConfig))
         .pipe(eslint.format());
     //.pipe(eslint.failOnError())
 });
 
 //========Javascript============================================================
+function polyfill() {
+    return new Promise(function(resolve, reject) {
+        gulp.src(PATH.js.polyfill)
+            .pipe(concat("polyfill.bundle.js"))
+            .pipe(uglify())
+            .pipe(gulp.dest(PATH.js.destino))
+            .on("end", resolve)
+            .on("error", reject);
+    });
+}
+
 gulp.task("js-clean", function() {
     console.log("TASK: js-clean");
     return del(PATH.js.destino);
 });
 gulp.task("js", ["valida-js", "js-clean"], function(done) {
     console.log("TASK: js");
-    glob(PATH.js.main, function(err, files) {
-        if(err) {
-            throw err;
-        }
-        var total = 0;
-        files.forEach(function(file) {
-            var temp = file.split("/");
-            var arquivoNome = temp[temp.length - 1];
-            arquivoNome = arquivoNome.split(".")[0];
-            console.log(file);
-            var b = browserify({
-                entries: file,
-                extensions: [".jsx", "js"],
-                debug: true
-            });
-            var stream = b.transform(babelify)
-                .bundle()
-                .on("error", function(err) {
-                    console.log(Array(10).join("##ERRO##"));
-                    console.log(err.toString());
-                    console.log(Array(10).join("##ERRO##"));
-                    this.emit("end");
-                })
-                .pipe(source(arquivoNome + ".bundle.js"));
-            if(_PRODUCAO) {
-                stream.pipe(streamify(uglify()));
+    polyfill().then(function() {
+        glob(PATH.js.main, function(err, files) {
+            if(err) {
+                throw err;
             }
-            stream.pipe(gulp.dest(PATH.js.destino))
-                .on("end", function() {
-                    total++;
-                    if(total === files.length) {
-                        done();
-                    }
+            var total = 0;
+            files.forEach(function(file) {
+                var temp = file.split("/");
+                var arquivoNome = temp[temp.length - 1];
+                arquivoNome = arquivoNome.split(".")[0];
+                console.log(file);
+                var b = browserify({
+                    entries: file,
+                    extensions: [".jsx", "js"],
+                    debug: true
                 });
+                var stream = b.transform(babelify)
+                    .bundle()
+                    .on("error", function(err) {
+                        console.log(Array(10).join("#js#ERRO##"));
+                        console.log(err.toString());
+                        console.log(Array(10).join("#js#ERRO##"));
+                        this.emit("end");
+                    })
+                    .pipe(source(arquivoNome + ".bundle.js"));
+                if(_PRODUCAO) {
+                    stream.pipe(streamify(uglify()));
+                }
+                stream.pipe(gulp.dest(PATH.js.destino))
+                    .on("end", function() {
+                        total++;
+                        if(total === files.length) {
+                            done();
+                        }
+                    });
+            });
         });
+    }).catch(function(ee) {
+        console.log(Array(10).join("#polyfill#ERRO##"));
+        console.log(ee.toString());
+        console.log(Array(10).join("#polyfill#ERRO##"));
     });
 });
 

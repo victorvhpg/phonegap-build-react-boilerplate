@@ -51,7 +51,7 @@
   //////////  REACT //////////
     "react/display-name": 0,
     "react/forbid-prop-types": 0,
-    "react/jsx-boolean-value": 1,
+    "react/jsx-boolean-value": 0,
     "react/jsx-closing-bracket-location": [1, "after-props"],
     "react/jsx-curly-spacing": 1,
     "react/jsx-indent-props": [1 , 2],

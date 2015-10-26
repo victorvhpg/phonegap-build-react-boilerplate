@@ -1,4 +1,4 @@
-# Phonegap Build React Boilerplate
+# Boilerplate Phonegap Build React.js 
 
 
 Boilerplate de um projeto Phonegap com React.js
@@ -12,6 +12,7 @@ Boilerplate de um projeto Phonegap com React.js
 - minificação CSS/JS
 - geração de pacotes zip para Android/iOS/WP  
 - sincronização e refresh automático utilizando BrowserSync
-
+- otimização de imagens/icones
+- polyfill para Promises/ES5/console
 
 @victorvhpg
