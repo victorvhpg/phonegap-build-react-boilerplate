@@ -23,9 +23,11 @@ var del = require("del");
 var imagemin = require("gulp-imagemin");
 var pngquant = require("imagemin-pngquant");
 var eslintConfig = JSON.parse(require("fs").readFileSync("./.eslintrc").toString());
+var dependenciasNPM = Object.keys(packageJSON.dependencies);
+var _parametros = require("minimist")(process.argv.slice(2));
 //==============================================================================
 
-var _PRODUCAO = process.argv[3] !== "--dev";
+var _PRODUCAO = _parametros.release;
 
 //da reload nos  browsers
 function reload(task) {
@@ -35,11 +37,11 @@ function reload(task) {
     }, 100);
 }
 
-// nome das tasks de  codigo fonte
-var _tasksCodigoFonte = ["js", "html", "css", "imagens"];
+// nome das tasks de  codigo fonte sem js
+var _tasksCodigoFonte = ["html", "css", "imagens"];
 
 //destino
-var PATH_WWW = "./www/";
+var PATH_WWW = "www/";
 //caminho para cada task
 var PATH = {
     js: {
@@ -89,7 +91,7 @@ function otimizaImg(origem, destino) {
 }
 
 //========build-codigo-fonte====================================================
-gulp.task("build-codigo-fonte", _tasksCodigoFonte.concat("gera-config"),
+gulp.task("build-codigo-fonte", _tasksCodigoFonte.concat(["gera-config", "js-com-libs"]),
     function(done) {
         console.log("TASK: build-codigo-fonte");
         done();
@@ -99,7 +101,9 @@ gulp.task("build-codigo-fonte", _tasksCodigoFonte.concat("gera-config"),
 ["android", "ios", "wp"].forEach(function(plataforma) {
     gulp.task("build-" + plataforma, ["build-codigo-fonte"], function(done) {
         console.log("TASK: build-" + plataforma);
+
         var locales = "locales/";
+
         del([PATH_WWW + "icon.png",
             PATH_WWW + "splash.png",
             PATH_WWW + "res/**/*",
@@ -204,13 +208,36 @@ function polyfill() {
     });
 }
 
-gulp.task("js-clean", function() {
-    console.log("TASK: js-clean");
-    return del(PATH.js.destino);
-});
-gulp.task("js", ["valida-js", "js-clean"], function(done) {
-    console.log("TASK: js");
-    polyfill().then(function() {
+function libsTerceiros() {
+    return new Promise(function(resolve, reject) {
+        polyfill().then(function() {
+            var b = browserify({
+                debug: !_PRODUCAO
+            });
+            dependenciasNPM.forEach(function(id) {
+                console.log(require.resolve(id));
+                b.require(require.resolve(id), {
+                    expose: id
+                });
+            });
+            var stream = b.bundle()
+                .on("error", function(err) {
+                    console.log(Array(10).join("#libsTerceiros#ERRO##"));
+                    console.log(err.message);
+                    console.log(Array(10).join("#libsTerceiros#ERRO##"));
+                    reject(err);
+                    this.emit("end");
+                }).pipe(source("libs.bundle.js"));
+            stream.pipe(streamify(uglify()));
+            stream.pipe(gulp.dest(PATH.js.destino + "libs/"));
+            stream.on("end", resolve);
+        }).catch(reject);
+    });
+}
+
+function buildJS() {
+    return new Promise(function(resolve, reject) {
+        console.log("buildJS: buildJS");
         glob(PATH.js.main, function(err, files) {
             if(err) {
                 throw err;
@@ -224,14 +251,18 @@ gulp.task("js", ["valida-js", "js-clean"], function(done) {
                 var b = browserify({
                     entries: file,
                     extensions: [".jsx", "js"],
-                    debug: true
+                    debug: !_PRODUCAO
+                });
+                dependenciasNPM.forEach(function(id) {
+                    b.external(id);
                 });
                 var stream = b.transform(babelify)
                     .bundle()
                     .on("error", function(err) {
-                        console.log(Array(10).join("#js#ERRO##"));
+                        console.log(Array(10).join("#buildJS#ERRO##"));
                         console.log(err.toString());
-                        console.log(Array(10).join("#js#ERRO##"));
+                        console.log(Array(10).join("#buildJS#ERRO##"));
+                        reject(err);
                         this.emit("end");
                     })
                     .pipe(source(arquivoNome + ".bundle.js"));
@@ -242,18 +273,42 @@ gulp.task("js", ["valida-js", "js-clean"], function(done) {
                     .on("end", function() {
                         total++;
                         if(total === files.length) {
-                            done();
+                            resolve();
                         }
                     });
             });
         });
-    }).catch(function(ee) {
-        console.log(Array(10).join("#polyfill#ERRO##"));
-        console.log(ee.toString());
-        console.log(Array(10).join("#polyfill#ERRO##"));
     });
+}
+
+gulp.task("js-clean", function() {
+    console.log("TASK: js-clean");
+    return del([PATH.js.destino + "*", "!" + PATH.js.destino + "libs"])
+        .then(function(paths) {
+            console.log("excluiu:\n", paths.join("\n"));
+        });
 });
 
+gulp.task("js-clean-libs", function() {
+    console.log("TASK: js-clean-libs");
+    return del([PATH.js.destino + "libs/*"])
+        .then(function(paths) {
+            console.log("excluiu:\n", paths.join("\n"));
+        });
+});
+
+gulp.task("js-libs", ["js-clean-libs"], function() {
+    console.log("TASK: js-libs");
+    return libsTerceiros();
+});
+
+gulp.task("js", ["valida-js", "js-clean"], function() {
+    return buildJS();
+});
+
+gulp.task("js-com-libs", ["valida-js", "js-clean", "js-libs"], function() {
+    return buildJS();
+});
 //========config.xml============================================================
 gulp.task("gera-config", function() {
     console.log("TASK: gera-config");
@@ -270,11 +325,10 @@ gulp.task("gera-config", function() {
         .pipe(gulp.dest(PATH_WWW));
 });
 
-
 //==============================================================================
 //==============================================================================
 //==============================================================================
-gulp.task("default", _tasksCodigoFonte, function() {
+gulp.task("default", ["build-codigo-fonte"], function() {
     //inicia o  servidor browserSync
     browserSync.init({
         server: {
@@ -283,7 +337,7 @@ gulp.task("default", _tasksCodigoFonte, function() {
     });
 
     //cria  as tasks  de  watch para cada  _tasksCodigoFonte
-    _tasksCodigoFonte.forEach(function(task) {
+    _tasksCodigoFonte.concat("js").forEach(function(task) {
         gulp.task("reload-" + task, [task], function() {
             reload(task);
         });
