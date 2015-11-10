@@ -73,7 +73,7 @@ function incVersao(tipo, verAtual) {
     }
     var tempVer = verAtual.split(".");
     return tempVer.map(function(v, indice) {
-        return(ver[tipo] === indice) ? ((+v) + 1).toString() : v;
+        return(ver[tipo] === indice) ? ((+v) + 1).toString() : (indice > ver[tipo]) ? "0" : v;
     }).join(".");
 }
 
