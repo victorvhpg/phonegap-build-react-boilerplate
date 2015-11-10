@@ -24,10 +24,71 @@ var imagemin = require("gulp-imagemin");
 var pngquant = require("imagemin-pngquant");
 var eslintConfig = JSON.parse(require("fs").readFileSync("./.eslintrc").toString());
 var dependenciasNPM = Object.keys(packageJSON.dependencies);
-var _parametros = require("minimist")(process.argv.slice(2));
-//==============================================================================
+var fs = require("fs");
+var _parametros = require("minimist")(process.argv.slice(2), {
+    boolean: true
+});
+var _idConfig = "phonegap-build-react-boilerplate";
 
-var _PRODUCAO = _parametros.release;
+//==============================================================================
+var _PRODUCAO = (_parametros._.indexOf("build-android") >= 0 ||
+    _parametros._.indexOf("build-wp") >= 0 ||
+    _parametros._.indexOf("build-ios") >= 0);
+
+if(!Object.hasOwnProperty.call(_parametros, "debug")) {
+    _parametros.debug = !_PRODUCAO;
+}
+if(!Object.hasOwnProperty.call(_parametros, "min")) {
+    _parametros.min = _PRODUCAO;
+}
+if(!Object.hasOwnProperty.call(_parametros, "ads")) {
+    _parametros.ads = _PRODUCAO;
+}
+if(!Object.hasOwnProperty.call(_parametros, "onError")) {
+    _parametros.onError = !_PRODUCAO;
+}
+
+/**
+versionamento   A.B.C   MAJOR.MINOR.PATCH
+build-android
+--release=android???
+--debug=true
+--min=false
+--onerror=true
+--ads=false
+--versao= // MAJOR.MINOR.PATCH
+
+*/
+
+//MAJOR.MINOR.PATCH
+function incVersao(tipo, verAtual) {
+    tipo = tipo.toUpperCase();
+    var ver = {
+        MAJOR: 0,
+        MINOR: 1,
+        PATCH: 2
+    };
+    if(!Object.hasOwnProperty.call(ver, tipo)) {
+        throw new Error("tipo  versao invalido");
+    }
+    var tempVer = verAtual.split(".");
+    return tempVer.map(function(v, indice) {
+        return(ver[tipo] === indice) ? ((+v) + 1).toString() : v;
+    }).join(".");
+}
+
+function atualizarVersao() {
+    var v = incVersao(_parametros.versao, packageJSON.version);
+    packageJSON.version = v;
+    packageJSON[_idConfig]["versao-code"]++;
+    console.log(v);
+    fs.writeFileSync("./package.json", JSON.stringify(packageJSON, null, 4));
+}
+
+
+if(_parametros.versao) {
+    atualizarVersao();
+}
 
 //da reload nos  browsers
 function reload(task) {
@@ -182,8 +243,18 @@ gulp.task("html-clean", function() {
 });
 gulp.task("html", ["html-clean"], function() {
     console.log("TASK: html");
+    var SCRIPT_CONFIG = {
+        dataBuild: Date.now(),
+        versao: packageJSON.version,
+        ads: _parametros.ads,
+        onError: _parametros.onError
+    };
+
+    var script = "window.SCRIPT_CONFIG = " + JSON.stringify(SCRIPT_CONFIG, null, 2) + ";";
+
     return gulp.src(PATH.html.origem)
-        .pipe(replace("{@APP_NOME}", packageJSON["phonegap-build-react-boilerplate"]["app-nome"]))
+        .pipe(replace("{@APP_NOME}", packageJSON[_idConfig]["app-nome"]))
+        .pipe(replace("//{@SCRIPT_CONFIG}", script))
         .pipe(gulp.dest(PATH.html.destino));
 });
 
@@ -212,7 +283,7 @@ function libsTerceiros() {
     return new Promise(function(resolve, reject) {
         polyfill().then(function() {
             var b = browserify({
-                debug: !_PRODUCAO
+                debug: _parametros.debug
             });
             dependenciasNPM.forEach(function(id) {
                 console.log(require.resolve(id));
@@ -251,7 +322,7 @@ function buildJS() {
                 var b = browserify({
                     entries: file,
                     extensions: [".jsx", "js"],
-                    debug: !_PRODUCAO
+                    debug: _parametros.debug
                 });
                 dependenciasNPM.forEach(function(id) {
                     b.external(id);
@@ -266,7 +337,7 @@ function buildJS() {
                         this.emit("end");
                     })
                     .pipe(source(arquivoNome + ".bundle.js"));
-                if(_PRODUCAO) {
+                if(_parametros.min) {
                     stream.pipe(streamify(uglify()));
                 }
                 stream.pipe(gulp.dest(PATH.js.destino))
@@ -312,7 +383,7 @@ gulp.task("js-com-libs", ["valida-js", "js-clean", "js-libs"], function() {
 //========config.xml============================================================
 gulp.task("gera-config", function() {
     console.log("TASK: gera-config");
-    var config = packageJSON["phonegap-build-react-boilerplate"];
+    var config = packageJSON[_idConfig];
     return gulp.src("./src/config.xml")
         .pipe(replace("{@VERSAO}", packageJSON.version))
         .pipe(replace("{@ID}", config["id"]))
